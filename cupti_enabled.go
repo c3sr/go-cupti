@@ -9,9 +9,7 @@ import (
 	"context"
 	"sync"
 	"time"
-	"unsafe"
 
-	"github.com/k0kubun/pp/v3"
 	"github.com/pkg/errors"
 	"github.com/c3sr/go-cupti/types"
 	nvidiasmi "github.com/c3sr/nvidia-smi"

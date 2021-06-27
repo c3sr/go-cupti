@@ -21,7 +21,6 @@ import (
 	//humanize "github.com/dustin/go-humanize"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	spanlog "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/c3sr/go-cupti/types"
 	tracer "github.com/c3sr/tracer"
