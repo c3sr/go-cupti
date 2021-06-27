@@ -11,7 +11,6 @@ type cuptiConfig struct {
 	Activities     []string      `json:"activities" config:"cupti.activities"`
 	Domains        []string      `json:"domains" config:"cupti.domains"`
 	Callbacks      []string      `json:"callbacks" config:"cupti.callbacks"`
-	Events         []string      `json:"events" config:"cupti.events"`
 	Metrics        []string      `json:"metrics" config:"cupti.metrics"`
 	done           chan struct{} `json:"-" config:"-"`
 }
@@ -41,12 +40,6 @@ func (a *cuptiConfig) Read() {
 	}
 	if len(a.Callbacks) == 0 {
 		a.Callbacks = DefaultCallbacks
-	}
-	if len(a.Events) == 0 {
-		a.Events = DefaultEvents
-	}
-	if len(a.Metrics) == 0 {
-		a.Metrics = DefaultMetrics
 	}
 }
 
