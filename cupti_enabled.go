@@ -8,14 +8,17 @@ package cupti
 import "C"
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 	"unsafe"
 
-	"github.com/pkg/errors"
 	"github.com/c3sr/go-cupti/types"
 	nvidiasmi "github.com/c3sr/nvidia-smi"
 	"github.com/c3sr/tracer"
+	opentracing "github.com/opentracing/opentracing-go"
+	spanlog "github.com/opentracing/opentracing-go/log"
+	"github.com/pkg/errors"
 )
 
 type CUPTI struct {
@@ -27,6 +30,7 @@ type CUPTI struct {
 	startTimeStamp  uint64
 	beginTime       time.Time
 	spans           sync.Map
+	correlationMap  map[uint64]int
 }
 
 var (
@@ -43,7 +47,7 @@ func New(opts ...Option) (*CUPTI, error) {
 
 	options := NewOptions(opts...)
 	c := &CUPTI{
-		Options:   options,
+		Options: options,
 	}
 
 	span, _ := tracer.StartSpanFromContext(options.ctx, tracer.FULL_TRACE, "cupti_new")
@@ -69,12 +73,13 @@ func New(opts ...Option) (*CUPTI, error) {
 		for i := 1; i < len(c.metrics); i++ {
 			metric += ","
 			metric += c.metrics[i]
-	    }
-	    cMetric := C.CString(metric)
-	    C.startProfiling(cMetric)
+		}
+		cMetric := C.CString(metric)
+		C.startProfiling(cMetric)
 		C.free(unsafe.Pointer(cMetric))
-    }
+	}
 
+	c.correlationMap = make(map[uint64]int)
 
 	return c, nil
 }
@@ -133,7 +138,26 @@ func (c *CUPTI) Close() error {
 	if c == nil {
 		return nil
 	}
-	C.endProfiling()
+
+	var flattenedLength C.uint64_t
+
+	ptr := C.endProfiling(&flattenedLength)
+	if ptr != nil {
+		metricData := (*[1 << 30]float64)(unsafe.Pointer(ptr))[:uint64(flattenedLength):uint64(flattenedLength)]
+		fmt.Println(flattenedLength)
+		c.spans.Range(func(key, value interface{}) bool {
+			spKey := key.(spanKey)
+			if spKey.tag == "cuda_launch" {
+				sp := value.(opentracing.Span)
+				st := c.correlationMap[spKey.correlationId] * len(c.metrics)
+				for i := 0; i < len(c.metrics); i++ {
+					sp.LogFields(spanlog.Float64(c.metrics[i], metricData[st+i]))
+				}
+			}
+			return true
+		})
+	}
+
 	c.Unsubscribe()
 
 	currentCUPTI = nil

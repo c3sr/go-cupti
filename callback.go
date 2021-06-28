@@ -20,17 +20,17 @@ import (
 	"github.com/ianlancetaylor/demangle"
 	"github.com/spf13/cast"
 	//humanize "github.com/dustin/go-humanize"
+	"github.com/c3sr/go-cupti/types"
+	tracer "github.com/c3sr/tracer"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/pkg/errors"
-	"github.com/c3sr/go-cupti/types"
-	tracer "github.com/c3sr/tracer"
 )
 
 // demangling names adds overhead
 func demangleName(n *C.char) string {
 	if n == nil {
-		 return ""
+		return ""
 	}
 	mangledName := C.GoString(n)
 	name, err := demangle.ToString(mangledName)
@@ -829,15 +829,14 @@ func (c *CUPTI) onCudaLaunchEnter(domain types.CUpti_CallbackDomain, cbid types.
 	}
 
 	c.setSpanContextCorrelationId(span, correlationId, "cuda_launch")
-
-	// pp.Println("onCudaLaunchEnter correlationId = ", int(correlationId))
+	sz := len(c.correlationMap)
+	c.correlationMap[correlationId] = sz
 
 	return nil
 }
 
 func (c *CUPTI) onCudaLaunchExit(domain types.CUpti_CallbackDomain, cbid types.CUPTI_RUNTIME_TRACE_CBID, cbInfo *C.CUpti_CallbackData) error {
 	correlationId := uint64(cbInfo.correlationId)
-	// pp.Println("onCudaLaunch Exit correlationId = ", int(correlationId))
 	span, err := c.spanFromContextCorrelationId(correlationId, "cuda_launch")
 	if err != nil {
 		return err
@@ -850,7 +849,7 @@ func (c *CUPTI) onCudaLaunchExit(domain types.CUpti_CallbackDomain, cbid types.C
 		cuError := (*C.CUresult)(cbInfo.functionReturnValue)
 		span.SetTag("result", types.CUresult(*cuError).String())
 	}
-	c.removeSpanContextByCorrelationId(correlationId, "cuda_launch")
+	// c.removeSpanContextByCorrelationId(correlationId, "cuda_launch")
 
 	return nil
 }
@@ -858,10 +857,14 @@ func (c *CUPTI) onCudaLaunchExit(domain types.CUpti_CallbackDomain, cbid types.C
 func (c *CUPTI) onCudaLaunch(domain types.CUpti_CallbackDomain, cbid types.CUPTI_RUNTIME_TRACE_CBID, cbInfo *C.CUpti_CallbackData) error {
 	switch cbInfo.callbackSite {
 	case C.CUPTI_API_ENTER:
-	    C.onCallback(C.int(1))
-		return c.onCudaLaunchEnter(domain, cbid, cbInfo)
+		err := c.onCudaLaunchEnter(domain, cbid, cbInfo)
+		if err != nil {
+			return err
+		}
+		C.onCallback(C.int(1))
+		return nil
 	case C.CUPTI_API_EXIT:
-	    C.onCallback(C.int(0))
+		C.onCallback(C.int(0))
 		return c.onCudaLaunchExit(domain, cbid, cbInfo)
 	default:
 		return errors.New("invalid callback site " + types.CUpti_ApiCallbackSite(cbInfo.callbackSite).String())
