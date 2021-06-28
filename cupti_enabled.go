@@ -3,12 +3,14 @@
 package cupti
 
 // #include <cupti.h>
+// #include "csrc/utils.hpp"
 // extern void CUPTIAPI kernelReplayCallback( char*  kernelName,  int numReplaysDone, void*  customData );
 import "C"
 import (
 	"context"
 	"sync"
 	"time"
+	"unsafe"
 
 	"github.com/pkg/errors"
 	"github.com/c3sr/go-cupti/types"
@@ -59,6 +61,20 @@ func New(opts ...Option) (*CUPTI, error) {
 	}
 	c.startTimeStamp = startTimeStamp
 	c.beginTime = time.Now()
+
+	if len(c.metrics) == 0 {
+		C.startProfiling(nil)
+	} else {
+		metric := c.metrics[0]
+		for i := 1; i < len(c.metrics); i++ {
+			metric += ","
+			metric += c.metrics[i]
+	    }
+	    cMetric := C.CString(metric)
+	    C.startProfiling(cMetric)
+		C.free(unsafe.Pointer(cMetric))
+    }
+
 
 	return c, nil
 }
@@ -117,6 +133,7 @@ func (c *CUPTI) Close() error {
 	if c == nil {
 		return nil
 	}
+	C.endProfiling()
 	c.Unsubscribe()
 
 	currentCUPTI = nil

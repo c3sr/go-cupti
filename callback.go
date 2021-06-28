@@ -7,6 +7,7 @@ package cupti
 #include <nvToolsExt.h>
 #include <nvToolsExtSync.h>
 #include <generated_nvtx_meta.h>
+#include "csrc/utils.hpp"
 */
 import "C"
 import (
@@ -857,8 +858,10 @@ func (c *CUPTI) onCudaLaunchExit(domain types.CUpti_CallbackDomain, cbid types.C
 func (c *CUPTI) onCudaLaunch(domain types.CUpti_CallbackDomain, cbid types.CUPTI_RUNTIME_TRACE_CBID, cbInfo *C.CUpti_CallbackData) error {
 	switch cbInfo.callbackSite {
 	case C.CUPTI_API_ENTER:
+	    C.onCallback(C.int(1))
 		return c.onCudaLaunchEnter(domain, cbid, cbInfo)
 	case C.CUPTI_API_EXIT:
+	    C.onCallback(C.int(0))
 		return c.onCudaLaunchExit(domain, cbid, cbInfo)
 	default:
 		return errors.New("invalid callback site " + types.CUpti_ApiCallbackSite(cbInfo.callbackSite).String())
