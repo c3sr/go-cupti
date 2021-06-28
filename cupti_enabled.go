@@ -8,7 +8,6 @@ package cupti
 import "C"
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 	"unsafe"
@@ -31,6 +30,7 @@ type CUPTI struct {
 	beginTime       time.Time
 	spans           sync.Map
 	correlationMap  map[uint64]int
+	correlationTime map[uint64]time.Time
 }
 
 var (
@@ -80,6 +80,7 @@ func New(opts ...Option) (*CUPTI, error) {
 	}
 
 	c.correlationMap = make(map[uint64]int)
+	c.correlationTime = make(map[uint64]time.Time)
 
 	return c, nil
 }
@@ -144,7 +145,6 @@ func (c *CUPTI) Close() error {
 	ptr := C.endProfiling(&flattenedLength)
 	if ptr != nil {
 		metricData := (*[1 << 30]float64)(unsafe.Pointer(ptr))[:uint64(flattenedLength):uint64(flattenedLength)]
-		fmt.Println(flattenedLength)
 		c.spans.Range(func(key, value interface{}) bool {
 			spKey := key.(spanKey)
 			if spKey.tag == "cuda_launch" {
@@ -153,6 +153,9 @@ func (c *CUPTI) Close() error {
 				for i := 0; i < len(c.metrics); i++ {
 					sp.LogFields(spanlog.Float64(c.metrics[i], metricData[st+i]))
 				}
+				sp.FinishWithOptions(opentracing.FinishOptions{
+					FinishTime: c.correlationTime[spKey.correlationId],
+				})
 			}
 			return true
 		})

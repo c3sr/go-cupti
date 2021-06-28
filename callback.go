@@ -844,7 +844,10 @@ func (c *CUPTI) onCudaLaunchExit(domain types.CUpti_CallbackDomain, cbid types.C
 	if span == nil {
 		return errors.New("no span found")
 	}
-	span.Finish()
+
+	c.correlationTime[correlationId] = time.Now()
+
+	// span.Finish()
 	if cbInfo.functionReturnValue != nil {
 		cuError := (*C.CUresult)(cbInfo.functionReturnValue)
 		span.SetTag("result", types.CUresult(*cuError).String())
